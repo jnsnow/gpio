@@ -119,7 +119,7 @@ int setup(void)
     if ((mem_fd = open("/dev/gpiomem", O_RDWR|O_SYNC)) > 0)
     {
         gpio_map = (uint32_t *)mmap(NULL, BLOCK_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, mem_fd, 0);
-        if ((uint32_t)gpio_map < 0) {
+        if ((void *)gpio_map < 0) {
             return SETUP_MMAP_FAIL;
         } else {
             return SETUP_OK;
@@ -147,7 +147,7 @@ int setup(void)
 
     gpio_map = (uint32_t *)mmap( NULL, BLOCK_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, mem_fd, gpio_base);
 
-    if ((uint32_t)gpio_map < 0)
+    if ((void *)gpio_map < 0)
         return SETUP_MMAP_FAIL;
 
     return SETUP_OK;
