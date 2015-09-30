@@ -57,17 +57,64 @@ void short_wait(void)
     }
 }
 
+
+int get_peri_base(uint32_t *peri_base)
+{
+  FILE *fp;
+  int found = 0;
+  unsigned char buf[4];
+  char buffer[1024];
+  char hardware[1024];
+  
+  // determine peri_base
+  if ((fp = fopen("/proc/device-tree/soc/ranges", "rb")) != NULL) {
+    // get peri base from device tree
+    fseek(fp, 4, SEEK_SET);
+    if (fread(buf, 1, sizeof buf, fp) == sizeof buf) {
+      *peri_base = buf[0] << 24 | buf[1] << 16 | buf[2] << 8 | buf[3] << 0;
+      fclose(fp);
+      return SETUP_OK;
+    } else {
+      /* Hmm, can't read. Try cpuinfo. */
+      fclose(fp);
+    }
+  }
+  
+  // guess peri base based on /proc/cpuinfo hardware field
+  if ((fp = fopen("/proc/cpuinfo", "r")) == NULL)
+    return SETUP_CPUINFO_FAIL;
+  
+  while(!feof(fp) && !found) {
+    fgets(buffer, sizeof(buffer), fp);
+    sscanf(buffer, "Hardware	: %s", hardware);
+    if (strcmp(hardware, "BCM2708") == 0 || strcmp(hardware, "BCM2835") == 0) {
+      // pi 1 hardware
+      *peri_base = BCM2708_PERI_BASE_DEFAULT;
+      found = 1;
+    } else if (strcmp(hardware, "BCM2709") == 0 || strcmp(hardware, "BCM2836") == 0) {
+      // pi 2 hardware
+      *peri_base = BCM2709_PERI_BASE_DEFAULT;
+      found = 1;
+    }
+  }
+  fclose(fp);
+
+  if (found) {
+    return SETUP_OK;
+  } else {
+    return SETUP_NOT_RPI_FAIL;
+  }
+}
+
+
+
 int setup(void)
 {
     int mem_fd;
     uint8_t *gpio_mem;
     uint32_t peri_base;
     uint32_t gpio_base;
-    unsigned char buf[4];
-    FILE *fp;
-    char buffer[1024];
-    char hardware[1024];
-    int found = 0;
+    int rc;
 
     // try /dev/gpiomem first - this does not require root privs
     if ((mem_fd = open("/dev/gpiomem", O_RDWR|O_SYNC)) > 0)
@@ -81,38 +128,10 @@ int setup(void)
     }
 
     // revert to /dev/mem method - requires root
-
-    // determine peri_base
-    if ((fp = fopen("/proc/device-tree/soc/ranges", "rb")) != NULL) {
-        // get peri base from device tree
-        fseek(fp, 4, SEEK_SET);
-        if (fread(buf, 1, sizeof buf, fp) == sizeof buf) {
-            peri_base = buf[0] << 24 | buf[1] << 16 | buf[2] << 8 | buf[3] << 0;
-        }
-        fclose(fp);
-    } else {
-        // guess peri base based on /proc/cpuinfo hardware field
-        if ((fp = fopen("/proc/cpuinfo", "r")) == NULL)
-            return SETUP_CPUINFO_FAIL;
-
-        while(!feof(fp) && !found) {
-            fgets(buffer, sizeof(buffer), fp);
-            sscanf(buffer, "Hardware	: %s", hardware);
-            if (strcmp(hardware, "BCM2708") == 0 || strcmp(hardware, "BCM2835") == 0) {
-                // pi 1 hardware
-                peri_base = BCM2708_PERI_BASE_DEFAULT;
-                found = 1;
-            } else if (strcmp(hardware, "BCM2709") == 0 || strcmp(hardware, "BCM2836") == 0) {
-                // pi 2 hardware
-                peri_base = BCM2709_PERI_BASE_DEFAULT;
-                found = 1;
-            }
-        }
-        fclose(fp);
-        if (!found)
-            return SETUP_NOT_RPI_FAIL;
+    rc = get_peri_base(&peri_base);
+    if (rc) {
+      return rc;
     }
-
     gpio_base = peri_base + GPIO_BASE_OFFSET;
 
     // mmap the GPIO memory registers
