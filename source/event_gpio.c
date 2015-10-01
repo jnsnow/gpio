@@ -51,7 +51,7 @@ struct gpios *gpio_list = NULL;
 struct callback
 {
     unsigned int gpio;
-    void (*func)(unsigned int gpio);
+    void (*func)(unsigned int gpio, int poll);
     struct callback *next;
 };
 struct callback *callbacks = NULL;
@@ -243,7 +243,7 @@ int gpio_event_added(unsigned int gpio)
 }
 
 /******* callback list functions ********/
-int add_edge_callback(unsigned int gpio, void (*func)(unsigned int gpio))
+int add_edge_callback(unsigned int gpio, void (*func)(unsigned int gpio, int val))
 {
     struct callback *cb = callbacks;
     struct callback *new_cb;
@@ -279,13 +279,13 @@ int callback_exists(unsigned int gpio)
     return 0;
 }
 
-void run_callbacks(unsigned int gpio)
+void run_callbacks(unsigned int gpio, int val)
 {
     struct callback *cb = callbacks;
     while (cb != NULL)
     {
         if (cb->gpio == gpio)
-            cb->func(cb->gpio);
+	  cb->func(cb->gpio, val);
         cb = cb->next;
     }
 }
@@ -314,6 +314,16 @@ void remove_callbacks(unsigned int gpio)
     }
 }
 
+int val_from_char(char buf)
+{
+  if (buf == '0') {
+    return 0;
+  } else if (buf == '1') {
+    return 1;
+  }
+
+  return -1;
+}
 void *poll_thread(void *threadarg)
 {
     struct epoll_event events;
@@ -344,7 +354,7 @@ void *poll_thread(void *threadarg)
                 if (g->bouncetime == -666 || timenow - g->lastcall > g->bouncetime*1000 || g->lastcall == 0 || g->lastcall > timenow) {
                     g->lastcall = timenow;
                     event_occurred[g->gpio] = 1;
-                    run_callbacks(g->gpio);
+                    run_callbacks(g->gpio, val_from_char(buf));
                 }
             }
         }

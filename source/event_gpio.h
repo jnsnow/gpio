@@ -27,7 +27,7 @@ SOFTWARE.
 
 int add_edge_detect(unsigned int gpio, unsigned int edge, int bouncetime);
 void remove_edge_detect(unsigned int gpio);
-int add_edge_callback(unsigned int gpio, void (*func)(unsigned int gpio));
+int add_edge_callback(unsigned int gpio, void (*func)(unsigned int gpio, int value));
 int event_detected(unsigned int gpio);
 int gpio_event_added(unsigned int gpio);
 int event_initialise(void);
